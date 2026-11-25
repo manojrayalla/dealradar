@@ -1,4 +1,5 @@
-import hashlib, html, json, re, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET
+import hashlib, html, json, re, urllib.parse, urllib.request, xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
@@ -90,19 +91,29 @@ def parse_item(item, source):
     score=min(99,50+(min(discount,40) if discount else 0)+(8 if source.startswith("DealNews") else 4))
     return {"id":ident,"title":title,"url":feed_url,"merchant_url":merchant_url,"description":plain[:500],"source":source,"merchant":urllib.parse.urlparse(merchant_url or feed_url).netloc.replace("www.","") or source,"category":category,"price":price,"discount":discount,"score":score,"published":published}
 
+def fetch_feed(source, url):
+    req=urllib.request.Request(url,headers=HEADERS)
+    with urllib.request.urlopen(req,timeout=10) as response:
+        raw=response.read(4000000)
+    root=ET.fromstring(raw)
+    nodes=root.findall(".//item") or root.findall(".//{http://www.w3.org/2005/Atom}entry")
+    found=[]
+    for node in nodes:
+        deal=parse_item(node,source)
+        if deal: found.append(deal)
+    return found
+
 def main():
     items={}; errors=[]
-    for source,url in SOURCES:
-        try:
-            req=urllib.request.Request(url,headers=HEADERS)
-            with urllib.request.urlopen(req,timeout=25) as response: raw=response.read(4000000)
-            root=ET.fromstring(raw)
-            nodes=root.findall(".//item") or root.findall(".//{http://www.w3.org/2005/Atom}entry")
-            for node in nodes:
-                deal=parse_item(node,source)
-                if deal: items[deal["id"]]=deal
-            time.sleep(.2)
-        except Exception as exc: errors.append(source+": "+type(exc).__name__)
+    # Fetch independent feeds concurrently so a slow publisher cannot stall the daily build.
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures={pool.submit(fetch_feed,source,url):(source,url) for source,url in SOURCES}
+        for future in as_completed(futures):
+            source,url=futures[future]
+            try:
+                for deal in future.result(): items[deal["id"]]=deal
+            except Exception as exc:
+                errors.append(source+": "+type(exc).__name__)
     previous=[]
     if OUT.exists():
         try: previous=json.loads(OUT.read_text(encoding="utf-8")).get("deals",[])
