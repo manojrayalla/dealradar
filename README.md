@@ -6,3 +6,5 @@ Responsive static deal discovery dashboard. Includes search, category filtering,
 
 ## Deploy
 GitHub Actions deploys the site to GitHub Pages on pushes to `main`. In repository Settings → Pages, choose **GitHub Actions** as the source. Expected site URL: https://manojrayalla.github.io/dealradar/
+
+Deployment workflow updated to enable GitHub Pages during setup.
