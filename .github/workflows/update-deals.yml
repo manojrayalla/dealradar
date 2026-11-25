@@ -5,24 +5,43 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  pages: write
+  id-token: write
 concurrency:
   group: refresh-deals
   cancel-in-progress: false
 jobs:
-  refresh:
+  refresh-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
           python-version: "3.x"
-      - name: Collect deal feeds
+      - name: Collect current deal feeds
         run: python scripts/update_deals.py
       - name: Commit refreshed catalogue
         run: |
-          if git diff --quiet; then echo "No changes"; exit 0; fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/deals.json
-          git commit -m "Refresh daily deal catalogue"
-          git push
+          if git diff --quiet; then
+            echo "No catalogue changes to commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/deals.json
+            git commit -m "Refresh daily deal catalogue"
+            git push
+          fi
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .
+      - name: Deploy updated DealRadar
+        id: deployment
+        uses: actions/deploy-pages@v4
