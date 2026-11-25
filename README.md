@@ -7,3 +7,5 @@ A static deal dashboard with daily RSS collection.
 - The catalogue targets 500+ offers and retains up to 1,000 unique listings. Actual count depends on public feed availability; the collector never fabricates deals.
 - Price/discount values are shown only when present in the feed. Verify current price and stock on the destination site.
 - GitHub Pages source should be set to GitHub Actions in repository Settings → Pages.
+
+Deployment pipeline now generates the deal JSON catalogue before packaging the GitHub Pages artifact.
